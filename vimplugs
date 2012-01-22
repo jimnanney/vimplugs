@@ -1,0 +1,106 @@
+#!/usr/bin/env ruby
+
+def run
+  # full path to the directory where this script is located
+  @vimplugs_dir = File.dirname(real_path(File.expand_path(__FILE__)))
+  # set config file name/location
+  @config_file  = real_path(File.join(@vimplugs_dir, 'vimplugs.conf'))
+  # set plugins directory name/location
+  @plugins_dir  = real_path(File.join(@vimplugs_dir, 'plugins'))
+
+  unless File.readable?(@config_file)
+    abort("Could Not Read Configuration File '#{ @config_file }'")
+  end
+  unless File.directory?(@plugins_dir)
+    require 'fileutils'
+    FileUtils.mkdir_p(@plugins_dir)
+  end
+
+  load_plugins
+
+  if ARGV[0] == 'update'
+    if ARGV[1] == '--system'
+      update_vimplugs
+    else
+      names = ARGV[1] ? ARGV[1].split(',') : @vimplugs.map(&:first)
+      update_plugins(names)
+    end
+  else
+    show_help
+  end
+end
+
+def real_path(path)
+  File.symlink?(path) ? File.readlink(path) : path
+end
+
+def load_plugins
+  @vimplugs = []
+  File.readlines(@config_file).each do |line|
+    line.strip!
+    unless line.empty? || line =~ /^#/
+      @vimplugs << line.split(' ')[0..1]
+    end
+  end
+end
+
+def update_plugins(names)
+  Dir.chdir(@plugins_dir) do
+    @vimplugs.select {|name, url| names.include?(name) }.each do |name, url|
+      if File.directory?(name)
+        puts "\n==> Updating '#{ name }'"
+        Dir.chdir(name) do
+          %x{ git pull -v --rebase }
+        end
+      else
+        puts "\n==> Installing '#{ name }'"
+        %x{ git clone #{ url } #{ name } }
+
+        # ignore doc/tags files created by :helptags
+        File.open(File.join(name, '.git', 'info', 'exclude'), 'a') do |file|
+          file.puts 'doc/tags'
+        end
+      end
+    end
+  end
+end
+
+def update_vimplugs
+  Dir.chdir(@vimplugs_dir) do
+    puts "\n==> Updating vimplugs"
+    %x{ git pull -v --rebase }
+  end
+end
+
+def show_help
+  script = File.basename($0)
+  puts <<-EOS.gsub(/^ +/, '  ')
+
+    To install/update all enabled plugins, use:
+    $ #{ script } update
+
+    To install/update specific enabled plugins, use:
+    $ #{ script } update plugin_a,plugin_b
+
+    To enable/disable plugins, edit your config file:
+    #{ @config_file }
+
+  EOS
+
+  installed = Dir["#{ @plugins_dir }/**"].map {|path| File.basename(path) }
+  enabled   = @vimplugs.map(&:first)
+  new       = enabled - installed
+  disabled  = (installed - enabled).map {|name| "#{ name }(x)" }
+  enabled   = enabled - new
+  new.map! {|name| "#{ name }(*)" }
+
+  legend = []
+  legend << '(x) Disabled' unless disabled.empty?
+  legend << '(*) Not Installed' unless new.empty?
+  legend = legend.empty? ? '' : "[ #{ legend.join(' :: ') } ]"
+
+  names = (enabled + disabled + new).sort.join(', ')
+  puts "Plugins: #{ names.empty? ? 'None' : "#{ legend }\n#{ names }" }"
+end
+
+run

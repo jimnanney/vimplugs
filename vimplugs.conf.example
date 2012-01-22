@@ -1,0 +1,18 @@
+##
+# Plugins
+#
+# List each plugin on a single line using the following format:
+# <plugin_name><space(s)><git_url>
+#
+# <plugin_name> should contain no spaces.
+# This will be used as the plugin's directory name,
+# and for command completion with the `:HelpTags` command
+#
+# Leading spaces on the line are ignored.
+# Empty lines are ignored.
+# Anything after the <git_url> on the line is ignored.
+#
+# To disable a plugin, comment the line.
+
+matchit   git://github.com/vim-scripts/matchit.zip.git
+vim-ruby  git://github.com/vim-ruby/vim-ruby.git
